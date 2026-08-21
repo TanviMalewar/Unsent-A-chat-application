@@ -4,6 +4,7 @@ const app = require("./src/app");
 const connectToDB = require("./src/config/db");
 const http = require('http'); 
 const socketIO = require('socket.io'); 
+const {setupSocketHandlers} = require("./src/sockets/socket.handler")
 
 const PORT = process.env.PORT || 3000;
 
@@ -22,6 +23,8 @@ async function startServer() {
             transports: ['websocket', 'polling'],
             allowEIO3: true 
         });
+
+        setupSocketHandlers(io);
 
         io.on('connection', (socket) => {
             console.log(`User connected: ${socket.id}`);
