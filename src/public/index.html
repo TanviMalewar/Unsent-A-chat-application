@@ -1,0 +1,194 @@
+<!-- src/public/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.io Test</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-top: 0; }
+        .status-box {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .connected { color: #28a745; font-weight: bold; }
+        .disconnected { color: #dc3545; font-weight: bold; }
+        .socket-id-box {
+            padding: 10px;
+            margin: 10px 0;
+            background: #e3f2fd;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .btn {
+            padding: 10px 25px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .btn-connect {
+            background: #28a745;
+            color: white;
+        }
+        .btn-connect:hover {
+            background: #218838;
+        }
+        .btn-disconnect {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-disconnect:hover {
+            background: #c82333;
+        }
+        .logs {
+            margin-top: 20px;
+            padding: 10px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .logs .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+        .logs .log-time {
+            color: #6c757d;
+        }
+        .logs .log-connect {
+            color: #28a745;
+        }
+        .logs .log-disconnect {
+            color: #dc3545;
+        }
+        .logs .log-info {
+            color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Socket.io Test</h1>
+        
+        <div class="status-box">
+            Status: <span id="connectionStatus" class="disconnected">Disconnected</span>
+        </div>
+        
+        <div class="socket-id-box">
+            Socket ID: <span id="idDisplay">Not connected</span>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <button class="btn btn-connect" onclick="connectSocket()">Connect</button>
+            <button class="btn btn-disconnect" onclick="disconnectSocket()">Disconnect</button>
+        </div>
+
+        <div class="logs" id="logs">
+            <div class="log-entry log-info">Connection logs will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        const logs = document.getElementById('logs');
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function connectSocket() {
+            if (socket && socket.connected) {
+                alert('Already connected!');
+                return;
+            }
+
+            addLog('Connecting to server...', 'info');
+            
+            // Use the same port as your server
+            const socketUrl = window.location.origin; // http://localhost:3000
+            
+            socket = io(socketUrl, {
+                transports: ['websocket', 'polling'],
+                upgrade: true,
+                rememberUpgrade: true,
+                forceNew: true
+            });
+            
+            socket.on('connect', () => {
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.getElementById('connectionStatus').className = 'connected';
+                document.getElementById('idDisplay').textContent = socket.id;
+                addLog(`Connected! Socket ID: ${socket.id}`, 'connect');
+                console.log('Connected! Socket ID:', socket.id);
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                document.getElementById('connectionStatus').className = 'disconnected';
+                document.getElementById('idDisplay').textContent = 'Not connected';
+                addLog('Disconnected from server', 'disconnect');
+                console.log('Disconnected from server');
+            });
+
+            socket.on('connect_error', (error) => {
+                addLog(`Connection error: ${error.message}`, 'disconnect');
+                console.error('Connection error:', error);
+                document.getElementById('connectionStatus').textContent = 'Error';
+                document.getElementById('connectionStatus').className = 'disconnected';
+                
+                // Try polling fallback
+                if (error.message === 'websocket error') {
+                    addLog('Falling back to polling transport...', 'info');
+                    socket.io.opts.transports = ['polling'];
+                    socket.connect();
+                }
+            });
+        }
+
+        function disconnectSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                document.getElementById('connectionStatus').textContent = 'Disconnected ';
+                document.getElementById('connectionStatus').className = 'disconnected';
+                document.getElementById('idDisplay').textContent = 'Not connected';
+                addLog('Disconnected manually', 'disconnect');
+                console.log('Disconnected manually');
+            } else {
+                alert('Not connected!');
+            }
+        }
+
+        // Don't auto-connect - let user click connect
+        // window.onload = () => {
+        //     setTimeout(connectSocket, 500);
+        // };
+    </script>
+</body>
+</html>
