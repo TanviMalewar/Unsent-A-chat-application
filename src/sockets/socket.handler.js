@@ -8,11 +8,11 @@ const setupSocketHandlers = (io) => {
   io.use(authenticateSocket);
 
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.user.username} (${socket.id})`);
+    console.log(`User connected: ${socket.user.name} (${socket.id})`);
 
     // Update user online status
     User.findByIdAndUpdate(socket.userId, { isOnline: true, lastSeen: Date.now() })
-      .then(() => console.log(`socket.user.username} is now online`))
+      .then(() => console.log(`${socket.user.name} is now online`))
       .catch(err => console.error('Error updating online status:', err));
 
     // Join a room
@@ -36,11 +36,11 @@ const setupSocketHandlers = (io) => {
 
         const roomIdString = room._id.toString();
         socket.join(roomIdString);
-        console.log(`${socket.user.username} joined room: ${roomIdString} (${room.name})`);
+        console.log(`${socket.user.name} joined room: ${roomIdString} (${room.name})`);
 
         // Fetch last 50 messages
         const messages = await Message.find({ room: room._id })
-          .populate('sender', 'username email')
+          .populate('sender', 'name email')
           .sort({ createdAt: -1 })
           .limit(50);
 
@@ -54,8 +54,8 @@ const setupSocketHandlers = (io) => {
         // Notify others in the room
         socket.to(roomIdString).emit('userJoined', {
           userId: socket.userId,
-          username: socket.user.username,
-          message: `${socket.user.username} has joined the room`
+          username: socket.user.name,
+          message: `${socket.user.name} has joined the room`
         });
 
       } catch (error) {
@@ -73,12 +73,12 @@ const setupSocketHandlers = (io) => {
         }
 
         socket.leave(roomId);
-        console.log(`${socket.user.username} left room: ${roomId}`);
+        console.log(`${socket.user.name} left room: ${roomId}`);
         
         socket.to(roomId).emit('userLeft', {
           userId: socket.userId,
-          username: socket.user.username,
-          message: `${socket.user.username} has left the room`
+          username: socket.user.name,
+          message: `${socket.user.name} has left the room`
         });
 
       } catch (error) {
@@ -90,7 +90,7 @@ const setupSocketHandlers = (io) => {
     // Send a message (with authentication!)
     socket.on('sendMessage', async ({ roomId, content }) => {
       try {
-        console.log(`Message from ${socket.user.username} in room ${roomId}:`, content);
+        console.log(`Message from ${socket.user.name} in room ${roomId}:`, content);
 
         if (!roomId) {
           socket.emit('error', { message: 'Room ID is required' });
@@ -121,7 +121,7 @@ const setupSocketHandlers = (io) => {
         });
 
         await message.save();
-        await message.populate('sender', 'username email');
+        await message.populate('sender', 'name email');
 
         // Broadcast to room
         io.to(roomId).emit('newMessage', {
@@ -129,7 +129,7 @@ const setupSocketHandlers = (io) => {
           roomId
         });
 
-        console.log(`Message from ${socket.user.username} broadcasted to room ${roomId}`);
+        console.log(`Message from ${socket.user.name} broadcasted to room ${roomId}`);
 
       } catch (error) {
         console.error('Send message error:', error);
@@ -139,7 +139,7 @@ const setupSocketHandlers = (io) => {
 
     // Disconnect
     socket.on('disconnect', async () => {
-      console.log(`User disconnected: ${socket.user?.username || 'Unknown'} (${socket.id})`);
+      console.log(`User disconnected: ${socket.user?.name || 'Unknown'} (${socket.id})`);
       
       // Update user offline status
       if (socket.userId) {
@@ -147,7 +147,7 @@ const setupSocketHandlers = (io) => {
           isOnline: false, 
           lastSeen: Date.now() 
         });
-        console.log(`${socket.user?.username} is now offline`);
+        console.log(`${socket.user?.name}is now offline`);
       }
     });
   });

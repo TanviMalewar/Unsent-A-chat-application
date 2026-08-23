@@ -8,6 +8,6 @@ router.post("/register", register);
 
 router.post("/login", login);
 
-router.get("/me",authMiddleware,getCurrentUser);
+//router.get("/me",authMiddleware,getCurrentUser);
 
 module.exports = router;
