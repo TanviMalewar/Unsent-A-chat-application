@@ -470,7 +470,7 @@
 
         function updateUser(user) {
             if (user) {
-                userBadge.textContent = user.username;
+                userBadge.textContent = user.name;
                 userBadge.className = 'user-badge';
                 currentUser = user;
             } else {
@@ -493,8 +493,12 @@
 
         function updateOnlineUsers(users) {
             onlineUsersEl.innerHTML = '<span class="label">Online:</span>';
-            
-            if (!users || users.length === 0) {
+
+            const otherUsers = (users || []).filter(
+                user => String(user.userId) !== String(currentUser?._id)
+            );
+
+            if (otherUsers.length === 0) {
                 const span = document.createElement('span');
                 span.className = 'no-users';
                 span.textContent = 'No one online';
@@ -502,7 +506,7 @@
                 return;
             }
 
-            users.forEach(user => {
+            otherUsers.forEach(user => {
                 const span = document.createElement('span');
                 span.className = 'online-user';
                 span.innerHTML = '<span class="dot"></span> ' + user.username;
@@ -514,8 +518,8 @@
             if (isOwn) {
                 return 'You';
             }
-            if (message.sender && message.sender.username) {
-                return message.sender.username;
+            if (message.sender && message.sender.name) {
+                return message.sender.name;
             }
             return 'Unknown';
         }
@@ -598,8 +602,8 @@
 
             // Presence Events
             socket.on('roomUsers', ({ roomId, users }) => {
-                if (roomId === currentRoom) {
-                    updateOnlineUsers(users);
+                if (roomId === roomInput.value.trim()) {
+                updateOnlineUsers(users);
                 }
             });
 
@@ -629,6 +633,7 @@
             });
 
             socket.on('roomHistory', ({ roomId, roomName, messages }) => {
+                console.log("ROOM HISTORY:", messages);
                 messagesEl.innerHTML = '';
                 updateRoom(roomId, roomName);
                 messages.forEach(msg => {
@@ -639,6 +644,7 @@
             });
 
             socket.on('newMessage', ({ message, roomId }) => {
+                console.log("NEW MESSAGE:", message);
                 if (roomId === currentRoom) {
                     const isOwn = message.sender?._id === currentUser?._id;
                     addMessage(message, isOwn);
@@ -763,9 +769,6 @@
             }
         };
 
-        socket?.on('connect', () => {
-            localStorage.setItem('chat_token', tokenInput.value.trim());
-        });
     </script>
 </body>
 </html>
