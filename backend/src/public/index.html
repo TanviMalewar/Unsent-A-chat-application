@@ -386,6 +386,45 @@
         .messages::-webkit-scrollbar-thumb:hover {
             background: #b0a096;
         }
+        .date-divider {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            padding: 8px 0;
+            margin: 8px 0;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+            width: 100%;
+        }
+        .room-item .unread-badge {
+            background: #075e54;
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+
+        .message-status {
+            font-size: 11px;
+            margin-left: 4px;
+            color: #4a7a5a;
+        }
+
+        .message-wrapper.left .message-status {
+            color: #999;
+        }
+        /* Header unread badge */
+        .unread-badge {
+            background: #dc3545;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 12px;
+            margin-left: 8px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -484,6 +523,7 @@
                 roomDisplay.textContent = roomName || roomId;
                 roomDisplay.className = 'header-room';
                 currentRoom = roomId;
+                unreadCounts[roomId] = 0;
             } else {
                 roomDisplay.className = 'header-room hidden';
                 currentRoom = null;
@@ -523,10 +563,49 @@
             }
             return 'Unknown';
         }
+        // Helper to format date groups         
+        function getDateGroup(date) {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+    
+            const msgDate = new Date(date);
+            msgDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+            yesterday.setHours(0, 0, 0, 0);
+    
+            if (msgDate.getTime() === today.getTime()) {
+                return 'Today';
+            } else if (msgDate.getTime() === yesterday.getTime()) {
+                return 'Yesterday';
+            } else {
+                return msgDate.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+            });
+            }
+        }
 
+        // For tracking date groups 
+        let lastDateGroup = null;
+        // For tracking unread counts 
+        let unreadCounts = {};
         function addMessage(message, isOwn) {
             const empty = messagesEl.querySelector('.empty-state');
             if (empty) empty.remove();
+
+            // Add date divider if date changed
+            const msgDate = new Date(message.createdAt);
+            const dateGroup = getDateGroup(msgDate);
+            
+            if (dateGroup !== lastDateGroup) {
+                lastDateGroup = dateGroup;
+                const divider = document.createElement('div');
+                divider.className = 'date-divider';
+                divider.textContent = dateGroup;
+                messagesEl.appendChild(divider);
+            }
 
             const wrapper = document.createElement('div');
             wrapper.className = 'message-wrapper ' + (isOwn ? 'right' : 'left');
@@ -536,7 +615,7 @@
 
             const sender = document.createElement('div');
             sender.className = 'message-sender';
-            sender.textContent = getSenderName(message, isOwn);
+            sender.textContent = isOwn ? 'You' : (message.sender?.name || 'Unknown');
 
             const text = document.createElement('div');
             text.className = 'message-text';
@@ -544,7 +623,22 @@
 
             const time = document.createElement('div');
             time.className = 'message-time';
-            time.textContent = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            const date = new Date(message.createdAt);
+            time.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            // Add delivery status for own messages
+            if (isOwn && message.readBy && message.readBy.length > 0) {
+                const status = document.createElement('span');
+                status.className = 'message-status';
+                status.textContent = ' ✓✓';
+                time.appendChild(status);
+            } else if (isOwn) {
+                const status = document.createElement('span');
+                status.className = 'message-status';
+                status.textContent = ' ✓';
+                time.appendChild(status);
+            }
 
             bubble.appendChild(sender);
             bubble.appendChild(text);
@@ -553,7 +647,41 @@
             messagesEl.appendChild(wrapper);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
+            
+        // Room list management
+        let rooms = [];
 
+        function updateRoomList() {
+            // Since your app uses roomInput, this is a placeholder
+            // We'll show unread counts in the header instead
+        }
+
+        function updateRoomListWithUnread() {
+            const roomId = roomInput.value.trim();
+            if (roomId && unreadCounts[roomId] && unreadCounts[roomId] > 0) {
+                // Show unread count in the header next to room name
+                const existingBadge = document.querySelector('.unread-badge');
+                if (existingBadge) {
+                    existingBadge.textContent = unreadCounts[roomId];
+                    existingBadge.style.display = 'inline-block';
+                } else {
+                    const badge = document.createElement('span');
+                    badge.className = 'unread-badge';
+                    badge.textContent = unreadCounts[roomId];
+                    // Add to the right side of header
+                    const headerRight = document.querySelector('.header-right');
+                    if (headerRight) {
+                        headerRight.appendChild(badge);
+                    }
+                }
+            } else {
+                const existingBadge = document.querySelector('.unread-badge');
+                if (existingBadge) {
+                    existingBadge.style.display = 'none';
+                }
+            }
+        }
+        
         function connectSocket() {
             const token = tokenInput.value.trim();
             if (!token) {
@@ -607,13 +735,13 @@
                 }
             });
 
-            socket.on('userOnline', ({ userId, username, message }) => {
+            socket.on('userOnline', ({ userId,name, message }) => {
                 if (userId !== currentUser?._id) {
                     showInfo(message, 'online');
                 }
             });
 
-            socket.on('userOffline', ({ userId, username, message }) => {
+            socket.on('userOffline', ({ userId,name, message }) => {
                 if (userId !== currentUser?._id) {
                     showInfo(message, 'offline');
                 }
@@ -637,11 +765,16 @@
                 console.log("FIRST MESSAGE:", messages[0]);
                 messagesEl.innerHTML = '';
                 updateRoom(roomId, roomName);
+                lastDateGroup = null;
+                unreadCounts[roomId] = 0;
                 messages.forEach(msg => {
                     const isOwn = msg.sender?._id === currentUser?._id;
                     addMessage(msg, isOwn);
                 });
                 showInfo('Loaded ' + messages.length + ' messages', 'success');
+                setTimeout(() => {
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                }, 100);
             });
 
             socket.on('newMessage', ({ message, roomId }) => {
@@ -649,7 +782,17 @@
                 if (roomId === currentRoom) {
                     const isOwn = message.sender?._id === currentUser?._id;
                     addMessage(message, isOwn);
+                }else {
+                    // Increment unread count for the room
+                    if (!unreadCounts[roomId]) {
+                    unreadCounts[roomId] = 0;
                 }
+                unreadCounts[roomId]++;
+                showInfo('New message in room: ' + roomId, 'info');
+                if (typeof updateRoomListWithUnread === 'function') {
+                    updateRoomListWithUnread();
+                }
+            }
             });
 
             socket.on('error', ({ message }) => {
