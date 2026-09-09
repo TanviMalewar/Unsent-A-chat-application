@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/chat.css">
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="header-left">
+                <span class="header-title">Chat</span>
+                <span id="roomDisplay" class="header-room hidden">Room</span>
+            </div>
+            <div class="header-right">
+                <span id="userBadge" class="user-badge hidden">User</span>
+                <button id="logoutBtn" class="btn btn-sm btn-outline">Logout</button>
+                <span id="statusBadge" class="header-status offline">Offline</span>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>Rooms</h2>
+                    <button id="createRoomBtn" class="btn btn-sm btn-primary">+ New</button>
+                </div>
+                <div class="room-list" id="roomList">
+                    <div class="loading-text">Loading rooms...</div>
+                </div>
+            </aside>
+
+            <section class="chat-area">
+                <div class="chat-header">
+                    <div>
+                        <h3 id="chatRoomName">Select a room</h3>
+                        <span id="chatRoomUsers" class="chat-users">0 online</span>
+                    </div>
+                    <div id="onlineUsersList" class="online-users-list"></div>
+                </div>
+
+                <div class="messages" id="messages">
+                    <div class="empty-state">Select a room to start chatting</div>
+                </div>
+
+                <div class="typing-indicator" id="typingIndicator"></div>
+
+                <div class="input-area">
+                    <input type="text" id="messageInput" placeholder="Type a message..." disabled>
+                    <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Create Room Modal -->
+    <div class="modal" id="createRoomModal" style="display:none;">
+        <div class="modal-content">
+            <h3>Create New Room</h3>
+            <form id="createRoomForm">
+                <div class="form-group">
+                    <label for="roomName">Room Name</label>
+                    <input type="text" id="roomName" placeholder="Enter room name" required>
+                </div>
+                <div class="form-group">
+                    <label for="roomType">Room Type</label>
+                    <select id="roomType">
+                        <option value="group">Group</option>
+                        <option value="direct">Direct</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Participants</label>
+                    <input type="text" id="participantsInput" placeholder="Enter user IDs (comma separated)">
+                    <small>For direct messages, enter exactly one user ID</small>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeCreateRoom()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/socket.js"></script>
+    <script src="/js/chat.js"></script>
+</body>
+</html>
