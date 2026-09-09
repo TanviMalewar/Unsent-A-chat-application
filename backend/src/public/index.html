@@ -634,6 +634,7 @@
 
             socket.on('roomHistory', ({ roomId, roomName, messages }) => {
                 console.log("ROOM HISTORY:", messages);
+                console.log("FIRST MESSAGE:", messages[0]);
                 messagesEl.innerHTML = '';
                 updateRoom(roomId, roomName);
                 messages.forEach(msg => {
