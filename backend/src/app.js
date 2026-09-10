@@ -1,11 +1,17 @@
 const express = require("express");
 const path = require('path');
+const cors = require('cors');
 const authRoutes = require("./routes/auth.routes");
 const roomRoutes = require("./routes/room.routes");
 const { authenticateToken } = require("./middlewares/auth.middleware");
 const messageRoutes = require("./routes/message.routes");
 
 const app = express();
+
+app.use(cors({
+    origin: 'http://localhost:3001', // Frontend port
+    credentials: true
+}));
 
 app.use(express.json());
 
