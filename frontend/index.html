@@ -3,57 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat App</title>
+    <title>Chat</title>
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="/css/chat.css">
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 </head>
 <body>
-    <div class="app-container">
-        <header class="header">
-            <div class="header-left">
-                <span class="header-title">Chat</span>
-                <span id="roomDisplay" class="header-room hidden">Room</span>
-            </div>
-            <div class="header-right">
-                <span id="userBadge" class="user-badge hidden">User</span>
-                <button id="logoutBtn" class="btn btn-sm btn-outline">Logout</button>
-                <span id="statusBadge" class="header-status offline">Offline</span>
-            </div>
-        </header>
-
-        <div class="main-content">
-            <aside class="sidebar">
-                <div class="sidebar-header">
-                    <h2>Rooms</h2>
-                    <button id="createRoomBtn" class="btn btn-sm btn-primary">+ New</button>
+    <div class="chat-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div>
+                    <h2>Chats</h2>
+                    <span id="userBadge" class="user-badge"></span>
                 </div>
-                <div class="room-list" id="roomList">
-                    <div class="loading-text">Loading rooms...</div>
-                </div>
-            </aside>
+                <button id="logoutBtn" class="btn btn-outline btn-sm">Logout</button>
+            </div>
+            <div class="room-list" id="roomList">
+                <div class="loading-text">Loading rooms...</div>
+            </div>
+            <div class="sidebar-footer">
+                <button id="createRoomBtn" class="btn btn-primary btn-full">+ New Room</button>
+            </div>
+        </aside>
 
-            <section class="chat-area">
-                <div class="chat-header">
-                    <div>
-                        <h3 id="chatRoomName">Select a room</h3>
-                        <span id="chatRoomUsers" class="chat-users">0 online</span>
+        <!-- Chat Area -->
+        <main class="chat-area">
+            <div class="chat-header">
+                <div>
+                    <h3 id="chatRoomName">Select a room</h3>
+                    <span id="chatRoomUsers" class="chat-users">0 online</span>
+                </div>
+                <div id="onlineUsersList" class="online-users-list"></div>
+            </div>
+
+            <div class="messages" id="messages">
+                <div class="empty-state">Select a room to start chatting</div>
+            </div>
+
+            <div class="typing-indicator" id="typingIndicator"></div>
+            <!-- Add this ABOVE the .input-area div -->
+                <div class="reply-preview" id="replyPreview" style="display:none;">
+                    <div class="reply-content">
+                        Replying to <strong id="replyAuthor"></strong>: <span id="replyText"></span>
                     </div>
-                    <div id="onlineUsersList" class="online-users-list"></div>
-                </div>
-
-                <div class="messages" id="messages">
-                    <div class="empty-state">Select a room to start chatting</div>
-                </div>
-
-                <div class="typing-indicator" id="typingIndicator"></div>
-
-                <div class="input-area">
-                    <input type="text" id="messageInput" placeholder="Type a message..." disabled>
-                    <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
-                </div>
-            </section>
-        </div>
+                <span class="reply-close" onclick="cancelReply()">✕</span>
+            </div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type a message..." disabled>
+                <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
+            </div>
+        </main>
     </div>
 
     <!-- Create Room Modal -->
@@ -73,12 +73,12 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Participants</label>
-                    <input type="text" id="participantsInput" placeholder="Enter user IDs (comma separated)">
-                    <small>For direct messages, enter exactly one user ID</small>
+                    <label for="participantsInput">Participant IDs</label>
+                    <input type="text" id="participantsInput" placeholder="user_id1, user_id2">
+                    <small>Enter comma-separated user IDs</small>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-outline" onclick="closeCreateRoom()">Cancel</button>
+                    <button type="button" class="btn btn-outline" onclick="ChatApp.closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create</button>
                 </div>
             </form>
@@ -86,9 +86,8 @@
     </div>
 
     <script src="/js/utils.js"></script>
-    <script src="/js/auth.js"></script>
-    <script src="/js/app.js"></script>
-    <script src="/js/socket.js"></script>
     <script src="/js/chat.js"></script>
+    <script src="/js/socket.js"></script>
+    <script src="/js/app.js"></script>
 </body>
 </html>

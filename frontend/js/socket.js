@@ -1,67 +1,149 @@
-ChatApp.connectSocket = function() {
-    const token = Utils.getToken();
-    if (!token) {
-        console.error('No token found');
-        return;
+function getCurrentUserId() {
+    try {
+        const user = JSON.parse(localStorage.getItem('chat_user') || '{}');
+        return user.id || user._id || null;
+    } catch {
+        return null;
     }
+}
 
-    this.socket = io(window.location.origin, {
+function connectSocket(token, currentRoom, currentUser) {
+    const socket = io(window.location.origin, {
         transports: ['websocket', 'polling'],
         auth: { token }
     });
 
-    const socket = this.socket;
-
     socket.on('connect', () => {
         console.log('Socket connected');
-        this.updateStatus(true);
-        if (this.currentRoom) {
-            socket.emit('joinRoom', { roomId: this.currentRoom });
+        if (window.ChatApp?.currentRoom) {
+            socket.emit('joinRoom', { roomId: window.ChatApp.currentRoom });
         }
     });
 
-    socket.on('disconnect', () => {
-        console.log('Socket disconnected');
-        this.updateStatus(false);
-    });
-
-    socket.on('connect_error', (error) => {
-        console.error('Socket error:', error);
-        this.updateStatus(false);
-    });
-
-    socket.on('userInfo', (user) => {
-        console.log('User info received:', user);
-    });
+    socket.on('disconnect', () => console.log('Socket disconnected'));
 
     socket.on('roomHistory', ({ roomId, roomName, messages }) => {
-        this.messages = messages;
-        this.renderMessages(messages);
-        this.updateRoomName(roomName);
+        const messagesEl = document.getElementById('messages');
+        messagesEl.innerHTML = '';
+        window.lastDateGroup = null;
+        if (window.unreadCounts) window.unreadCounts[roomId] = 0;
+
+        document.getElementById('chatRoomName').textContent = roomName || roomId;
+
+        const myId = String(getCurrentUserId() || '');
+
+        messages.forEach(msg => {
+            const senderId = String(msg.sender?._id || msg.sender || '');
+            const isOwn = myId && senderId && myId === senderId;
+            addMessage(msg, isOwn);
+        });
+
+        setTimeout(() => {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }, 100);
     });
 
     socket.on('newMessage', ({ message, roomId }) => {
-        if (roomId === this.currentRoom) {
-            this.messages.push(message);
-            this.renderMessages(this.messages);
+
+    console.log("=== NEW MESSAGE RECEIVED ===");
+    console.log("event roomId:", roomId);
+    console.log("currentRoom:", window.ChatApp?.currentRoom);
+    console.log(
+        "same room:",
+        String(roomId) === String(window.ChatApp?.currentRoom)
+    );
+    console.log("message:", message);
+
+    if (String(roomId) === String(window.ChatApp?.currentRoom)) {
+        const myId = String(getCurrentUserId() || '');
+            const senderId = String(message.sender?._id ||message.sender || '');
+            const isOwn = myId && senderId && myId === senderId;
+            console.log("NEW MESSAGE OWNERSHIP DEBUG:", {
+            myId,
+            senderId,
+            isOwn,
+            message
+        });
+            addMessage(message, isOwn);
+        } else {
+            if (!window.unreadCounts) window.unreadCounts = {};
+            window.unreadCounts[roomId] = (window.unreadCounts[roomId] || 0) + 1;
+
+            const app = window.ChatApp;
+            if (app && app.rooms) {
+                renderRooms(app.rooms, app.currentRoom, window.unreadCounts);
+            }
         }
+    });
+
+    socket.on('messageEdited', ({ messageId, content }) => {
+        const wrapper = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (!wrapper) return;
+
+        const textEl = wrapper.querySelector('.message-text');
+        if (textEl) textEl.textContent = content;
+
+        const sender = wrapper.querySelector('.message-sender');
+        if (sender && !sender.querySelector('.edited-label')) {
+            const label = document.createElement('span');
+            label.className = 'edited-label';
+            label.textContent = ' (edited)';
+            sender.appendChild(label);
+        }
+    });
+
+    socket.on('messageDeleted', ({ messageId }) => {
+        const wrapper = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (!wrapper) return;
+
+        const textEl = wrapper.querySelector('.message-text');
+        if (textEl) {
+            textEl.textContent = 'This message was deleted';
+            textEl.style.fontStyle = 'italic';
+            textEl.style.color = '#999';
+        }
+
+        const actions = wrapper.querySelector('.message-actions');
+        if (actions) actions.remove();
+        wrapper.classList.add('deleted');
     });
 
     socket.on('roomUsers', ({ roomId, users }) => {
-        if (roomId === this.currentRoom) {
-            this.updateOnlineUsers(users);
+        if (roomId === window.ChatApp?.currentRoom) {
+            const myId = String(getCurrentUserId() || '');
+            const others = users.filter(u => String(u.userId) !== myId);
+
+            const onlineList = document.getElementById('onlineUsersList');
+            if (onlineList) {
+                onlineList.innerHTML = others.map(u =>
+                    `<span class="online-user-tag">● ${u.name || u.username || 'User'}</span>`
+                ).join('');
+            }
+
+            const usersCount = document.getElementById('chatRoomUsers');
+            if (usersCount) usersCount.textContent = others.length + ' online';
         }
     });
 
-    socket.on('userTyping', ({ userId, username, roomId, isTyping }) => {
-        if (roomId === this.currentRoom && userId !== this.currentUser?._id) {
-            this.updateTypingIndicator(username, isTyping);
+    socket.on('userTyping', ({ userId, name, roomId, isTyping }) => {
+        if (roomId === window.ChatApp?.currentRoom && userId !== getCurrentUserId()) {
+            const typingEl = document.getElementById('typingIndicator');
+            if (typingEl) {
+                typingEl.textContent = isTyping ? (name || 'Someone') + ' is typing...' : '';
+                typingEl.className = isTyping ? 'typing-indicator active' : 'typing-indicator';
+            }
         }
     });
 
     socket.on('error', ({ message }) => {
-        console.error('Socket error:', message);
         const messagesEl = document.getElementById('messages');
-        Utils.showInfo(message, 'error', messagesEl);
+        if (!messagesEl) return;
+        const el = document.createElement('div');
+        el.className = 'info-message error';
+        el.textContent = message;
+        messagesEl.appendChild(el);
+        setTimeout(() => el.remove(), 3000);
     });
-};
+
+    return socket;
+}

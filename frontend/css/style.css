@@ -1,3 +1,4 @@
+/* ===== RESET ===== */
 * {
     margin: 0;
     padding: 0;
@@ -11,6 +12,7 @@ body {
     overflow: hidden;
 }
 
+/* ===== BUTTONS ===== */
 .btn {
     padding: 8px 16px;
     border: none;
@@ -64,6 +66,7 @@ body {
     cursor: not-allowed;
 }
 
+/* ===== FORM ELEMENTS ===== */
 .form-group {
     margin-bottom: 16px;
 }
@@ -98,6 +101,7 @@ body {
     color: #666;
 }
 
+/* ===== MESSAGES ===== */
 .error-message {
     color: #dc3545;
     font-size: 14px;
@@ -116,6 +120,7 @@ body {
     border-radius: 4px;
 }
 
+/* ===== MODAL ===== */
 .modal {
     position: fixed;
     top: 0;
