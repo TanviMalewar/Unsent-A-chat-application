@@ -5,15 +5,13 @@ const Room = require('../models/room.model');
 // Send a message
 exports.sendMessage = async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, replyTo } = req.body;
     const roomId = req.params.id;
 
-    // Validate content
     if (!content || content.trim() === '') {
       return res.status(400).json({ error: 'Message content is required' });
     }
 
-    // Check if room exists and user is a participant
     const room = await Room.findOne({
       _id: roomId,
       participants: req.user._id
@@ -23,17 +21,26 @@ exports.sendMessage = async (req, res) => {
       return res.status(404).json({ error: 'Room not found or you are not a participant' });
     }
 
-    // Create message
     const message = new Message({
       room: roomId,
       sender: req.user._id,
-      content: content.trim()
+      content: content.trim(),
+      replyTo: replyTo || null
     });
 
     await message.save();
+    await message.populate('sender', 'name email');
     
-    // Populate sender details
-    await message.populate('sender', 'username email');
+    if (message.replyTo) {
+      await message.populate({
+        path: 'replyTo',
+        select: 'content sender isDeleted',
+        populate: {
+          path: 'sender',
+          select: 'name'
+        }
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -55,7 +62,6 @@ exports.getMessages = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 100);
     const skip = (page - 1) * limit;
 
-    // Check if room exists and user is a participant
     const room = await Room.findOne({
       _id: roomId,
       participants: req.user._id
@@ -65,19 +71,25 @@ exports.getMessages = async (req, res) => {
       return res.status(404).json({ error: 'Room not found or you are not a participant' });
     }
 
-    // Get messages
     const messages = await Message.find({ room: roomId })
-      .populate('sender', 'username email')
+      .populate('sender', 'name email')
+      .populate({
+        path: 'replyTo',
+        select: 'content sender isDeleted',
+        populate: {
+          path: 'sender',
+          select: 'name'
+        }
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    // Get total count for pagination
     const total = await Message.countDocuments({ room: roomId });
 
     res.json({
       success: true,
-      messages: messages.reverse(), // Reverse to show oldest first
+      messages: messages.reverse(),
       pagination: {
         page,
         limit,
@@ -93,4 +105,95 @@ exports.getMessages = async (req, res) => {
       error: error.message || 'Failed to fetch messages' 
     });
   }
+};
+
+// Edit a message
+exports.editMessage = async (req, res) => {
+    try {
+        const { content } = req.body;
+        const { id: roomId, messageId } = req.params;
+
+        if (!content || content.trim() === '') {
+            return res.status(400).json({ error: 'Message content is required' });
+        }
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+
+        if (message.room.toString() !== roomId) {
+            return res.status(400).json({ error: 'Message does not belong to this room' });
+        }
+
+        if (message.sender.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: 'You can only edit your own messages' });
+        }
+
+        if (message.isDeleted) {
+            return res.status(400).json({ error: 'Cannot edit deleted message' });
+        }
+
+        message.content = content.trim();
+        message.isEdited = true;
+        await message.save();
+
+        await message.populate('sender', 'name email');
+        await message.populate({
+            path: 'replyTo',
+            select: 'content sender isDeleted',
+            populate: {
+                path: 'sender',
+                select: 'name'
+            }
+        });
+
+        res.json({
+            success: true,
+            message
+        });
+    } catch (error) {
+        console.error('Edit message error:', error);
+        res.status(500).json({ error: error.message || 'Failed to edit message' });
+    }
+};
+
+// Delete a message
+exports.deleteMessage = async (req, res) => {
+    try {
+        const { id: roomId, messageId } = req.params;
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+
+        if (message.room.toString() !== roomId) {
+            return res.status(400).json({ error: 'Message does not belong to this room' });
+        }
+
+        if (message.sender.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: 'You can only delete your own messages' });
+        }
+
+        if (message.isDeleted) {
+            return res.status(400).json({ error: 'Message already deleted' });
+        }
+
+        message.isDeleted = true;
+        message.content = 'This message was deleted';
+        await message.save();
+
+        await message.populate('sender', 'name email');
+
+        res.json({
+            success: true,
+            message
+        });
+    } catch (error) {
+        console.error('Delete message error:', error);
+        res.status(500).json({ error: error.message || 'Failed to delete message' });
+    }
 };

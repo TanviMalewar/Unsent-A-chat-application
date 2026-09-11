@@ -15,8 +15,21 @@ const messageSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    minlength:1,
+    minlength: 1,
     maxlength: 5000
+  },
+  replyTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Message',
+    default: null
+  },
+  isEdited: {
+    type: Boolean,
+    default: false
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false
   },
   readBy: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -29,10 +42,5 @@ const messageSchema = new mongoose.Schema({
 // Index for efficient queries
 messageSchema.index({ room: 1, createdAt: -1 });
 messageSchema.index({ sender: 1 });
-
-// // Virtual for formatted date
-// messageSchema.virtual('formattedDate').get(function() {
-//   return this.createdAt.toLocaleString();
-// });
 
 module.exports = mongoose.model('Message', messageSchema);

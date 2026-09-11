@@ -36,7 +36,7 @@ function getOnlineUsersInRoom(roomId, io) {
 
                 users.push({
                     userId: userId,
-                    username: socket.user?.name || 'Unknown'
+                    name: socket.user?.name || 'Unknown'
                 });
             }
         }
@@ -51,13 +51,9 @@ const setupSocketHandlers = (io) => {
     io.on('connection', (socket) => {
 
         const userId = socket.userId.toString();
-        const username = socket.user.name;
+        const name = socket.user.name;
 
-        console.log(`User connected: ${username} (${socket.id})`);
-
-        // -----------------------------
-        // Track online user
-        // -----------------------------
+        console.log(`User connected: ${name} (${socket.id})`);
 
         if (!onlineUsers.has(userId)) {
             onlineUsers.set(userId, new Set());
@@ -66,7 +62,7 @@ const setupSocketHandlers = (io) => {
         onlineUsers.get(userId).add(socket.id);
 
         console.log(
-            `User ${username} now has ${onlineUsers.get(userId).size} active connection(s)`
+            `User ${name} now has ${onlineUsers.get(userId).size} active connection(s)`
         );
 
         // Send logged-in user's information
@@ -75,10 +71,6 @@ const setupSocketHandlers = (io) => {
             name: socket.user.name,
             email: socket.user.email
         });
-
-        // -----------------------------
-        // JOIN ROOM
-        // -----------------------------
 
         socket.on('joinRoom', async ({ roomId }) => {
             try {
@@ -107,7 +99,7 @@ const setupSocketHandlers = (io) => {
                 socket.join(roomIdString);
 
                 console.log(
-                    `${username} joined room: ${roomIdString} (${room.name})`
+                    `${name} joined room: ${roomIdString} (${room.name})`
                 );
 
                 // Get everyone currently online in this room
@@ -122,8 +114,8 @@ const setupSocketHandlers = (io) => {
                 // Notify other users
                 socket.to(roomIdString).emit('userOnline', {
                     userId: userId,
-                    username: username,
-                    message: `${username} is online`
+                    name: name,
+                    message: `${name} is online`
                 });
 
                 // Fetch last 50 messages
@@ -131,8 +123,13 @@ const setupSocketHandlers = (io) => {
                     room: room._id
                 })
                     .populate('sender', 'name email')
-                    .sort({ createdAt: -1 })
-                    .limit(50);
+                    .populate({
+                    path: 'replyTo',
+                    populate: {
+                        path: 'sender',
+                        select: 'name email'
+                    }
+                })
 
                 // Send history to joining user
                 socket.emit('roomHistory', {
@@ -150,10 +147,6 @@ const setupSocketHandlers = (io) => {
             }
         });
 
-        // -----------------------------
-        // LEAVE ROOM
-        // -----------------------------
-
         socket.on('leaveRoom', ({ roomId }) => {
             try {
                 if (!roomId) {
@@ -166,7 +159,7 @@ const setupSocketHandlers = (io) => {
                 socket.leave(roomId);
 
                 console.log(
-                    `${username} left room: ${roomId}`
+                    `${name} left room: ${roomId}`
                 );
 
                 // Get updated users AFTER leaving
@@ -181,8 +174,8 @@ const setupSocketHandlers = (io) => {
                 // Tell remaining users that this user left
                 socket.to(roomId).emit('userOffline', {
                     userId: userId,
-                    username: username,
-                    message: `${username} is offline`
+                    uname: name,
+                    message: `${name} is offline`
                 });
 
             } catch (error) {
@@ -194,110 +187,100 @@ const setupSocketHandlers = (io) => {
             }
         });
 
-        // -----------------------------
-        // SEND MESSAGE
-        // -----------------------------
+  socket.on('sendMessage', async ({ roomId, content, replyTo }) => {
+    try {
+        console.log('=== SEND MESSAGE DEBUG ===');
+        console.log('socket.userId:', socket.userId);
+        console.log('socket.user._id:', socket.user._id);
+        console.log('socket.user.name:', socket.user.name);
+        console.log('sender value used:', socket.userId);
+        console.log('replyTo:', replyTo);
 
-        socket.on('sendMessage', async ({ roomId, content }) => {
-            try {
-                console.log(
-                    `Message from ${username} in room ${roomId}:`,
-                    content
-                );
+        if (!roomId) {
+            socket.emit('error', { message: 'Room ID is required' });
+            return;
+        }
 
-                if (!roomId) {
-                    socket.emit('error', {
-                        message: 'Room ID is required'
-                    });
-                    return;
-                }
+        if (!content || content.trim() === '') {
+            socket.emit('error', { message: 'Message content is required' });
+            return;
+        }
 
-                if (!content || content.trim() === '') {
-                    socket.emit('error', {
-                        message: 'Message content is required'
-                    });
-                    return;
-                }
-
-                const room = await Room.findOne({
-                    _id: roomId,
-                    participants: socket.userId
-                });
-
-                if (!room) {
-                    socket.emit('error', {
-                        message: 'Room not found or you are not a participant'
-                    });
-                    return;
-                }
-
-                const message = new Message({
-                    room: roomId,
-                    sender: socket.userId,
-                    content: content.trim()
-                });
-
-                await message.save();
-
-                // Populate sender name
-                await message.populate('sender', 'name email');
-
-                // Send message to everyone in room
-                io.to(roomId).emit('newMessage', {
-                    message,
-                    roomId
-                });
-
-                console.log(
-                    `Message from ${username} broadcasted to room ${roomId}`
-                );
-
-            } catch (error) {
-                console.error('Send message error:', error);
-
-                socket.emit('error', {
-                    message: 'Failed to send message: ' + error.message
-                });
-            }
+        const room = await Room.findOne({
+            _id: roomId,
+            participants: socket.userId
         });
 
-        // -----------------------------
-        // TYPING
-        // -----------------------------
+        if (!room) {
+            socket.emit('error', {
+                message: 'Room not found or you are not a participant'
+            });
+            return;
+        }
+
+        const message = new Message({
+            room: roomId,
+            sender: socket.userId,
+            content: content.trim(),
+            replyTo: replyTo || null
+        });
+
+        await message.save();
+
+        await message.populate([
+            {
+                path: 'sender',
+                select: 'name email'
+            },
+            {
+                path: 'replyTo',
+                populate: {
+                    path: 'sender',
+                    select: 'name email'
+                }
+            }
+        ]);
+
+        io.to(roomId).emit('newMessage', {
+            message,
+            roomId
+        });
+
+        console.log(`Message from ${name} broadcasted to room ${roomId}`);
+
+    } catch (error) {
+        console.error('Send message error:', error);
+        socket.emit('error', {
+            message: 'Failed to send message: ' + error.message
+        });
+    }
+});
 
         socket.on('typing', ({ roomId }) => {
             if (!roomId) return;
 
             socket.to(roomId).emit('userTyping', {
                 userId: userId,
-                username: username,
+                name: name,
                 roomId: roomId,
                 isTyping: true
             });
         });
-
-        // -----------------------------
-        // STOP TYPING
-        // -----------------------------
 
         socket.on('stopTyping', ({ roomId }) => {
             if (!roomId) return;
 
             socket.to(roomId).emit('userTyping', {
                 userId: userId,
-                username: username,
+                name: name,
                 roomId: roomId,
                 isTyping: false
             });
         });
 
-        // -----------------------------
-        // DISCONNECTING
-        // -----------------------------
-
         socket.on('disconnecting', () => {
             console.log(
-                `User disconnecting: ${username} (${socket.id})`
+                `User disconnecting: ${name} (${socket.id})`
             );
 
             // Capture rooms BEFORE Socket.IO removes the socket
@@ -312,7 +295,7 @@ const setupSocketHandlers = (io) => {
                 userSockets.delete(socket.id);
 
                 console.log(
-                    `User ${username} now has ${userSockets.size} active connection(s)`
+                    `User ${name} now has ${userSockets.size} active connection(s)`
                 );
 
                 // User has no more active connections
@@ -320,7 +303,7 @@ const setupSocketHandlers = (io) => {
                     onlineUsers.delete(userId);
 
                     console.log(
-                        `User ${username} is now completely offline`
+                        `User ${name} is now completely offline`
                     );
                 }
             }
@@ -353,7 +336,7 @@ const setupSocketHandlers = (io) => {
 
                                 users.push({
                                     userId: otherUserId,
-                                    username:
+                                    name:
                                         otherSocket.user?.name ||
                                         'Unknown'
                                 });
@@ -375,12 +358,103 @@ const setupSocketHandlers = (io) => {
                 if (remainingUserSockets.size === 0) {
                     socket.to(roomId).emit('userOffline', {
                         userId: userId,
-                        username: username,
-                        message: `${username} is offline`
+                        name: name,
+                        message: `${name} is offline`
                     });
                 }
             }
         });
+
+        // Edit message via socket
+        socket.on('editMessage', async ({ roomId, messageId, content }) => {
+            try {
+                if (!roomId || !messageId || !content || content.trim() === '') {
+                    socket.emit('error', { message: 'Invalid edit request' });
+                    return;
+                }
+
+                const message = await Message.findById(messageId);
+
+                if (!message) {
+                    socket.emit('error', { message: 'Message not found' });
+                    return;
+                }
+
+                // Authorization: only sender can edit
+                if (message.sender.toString() !== socket.userId.toString()) {
+                    socket.emit('error', { message: 'You can only edit your own messages' });
+                    return;
+                }
+
+                if (message.isDeleted) {
+                    socket.emit('error', { message: 'Cannot edit deleted message' });
+                    return;
+                }
+
+                // Update message
+                message.content = content.trim();
+                message.isEdited = true;
+                await message.save();
+                await message.populate('sender', 'name email');
+
+                // Broadcast to room
+                io.to(roomId).emit('messageEdited', {
+                    messageId: message._id,
+                    content: message.content,
+                    isEdited: message.isEdited
+                });
+
+                console.log(`Message edited by ${socket.user.name}`);
+
+            } catch (error) {
+                console.error('Edit message error:', error);
+                socket.emit('error', { message: 'Failed to edit message' });
+            }
+        });
+
+        // Delete message via socket
+        socket.on('deleteMessage', async ({ roomId, messageId }) => {
+            try {
+                if (!roomId || !messageId) {
+                    socket.emit('error', { message: 'Invalid delete request' });
+                    return;
+                }
+
+                const message = await Message.findById(messageId);
+
+                if (!message) {
+                    socket.emit('error', { message: 'Message not found' });
+                    return;
+                }
+
+                // Authorization: only sender can delete
+                if (message.sender.toString() !== socket.userId.toString()) {
+                    socket.emit('error', { message: 'You can only delete your own messages' });
+                    return;
+                }
+
+                if (message.isDeleted) {
+                    socket.emit('error', { message: 'Message already deleted' });
+                    return;
+                }
+
+                // Soft delete
+                message.isDeleted = true;
+                message.content = 'This message was deleted';
+                await message.save();
+
+                // Broadcast to room
+                io.to(roomId).emit('messageDeleted', {
+                    messageId: message._id
+                });
+
+                console.log(`Message deleted by ${socket.user.name}`);
+
+            } catch (error) {
+                console.error('Delete message error:', error);
+                socket.emit('error', { message: 'Failed to delete message' });
+            }
+        }); 
     });
 };
 
