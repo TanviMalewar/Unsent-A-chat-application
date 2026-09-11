@@ -1,3 +1,6 @@
+let hasMoreMessages = false;
+let loadingOlderMessages = false;
+
 function getCurrentUserId() {
     try {
         const user = JSON.parse(localStorage.getItem('chat_user') || '{}');
@@ -22,8 +25,10 @@ function connectSocket(token, currentRoom, currentUser) {
 
     socket.on('disconnect', () => console.log('Socket disconnected'));
 
-    socket.on('roomHistory', ({ roomId, roomName, messages }) => {
+    socket.on('roomHistory', ({ roomId, roomName, messages, hasMore }) => {
         const messagesEl = document.getElementById('messages');
+        hasMoreMessages = hasMore;
+        loadingOlderMessages = false;
         messagesEl.innerHTML = '';
         window.lastDateGroup = null;
         if (window.unreadCounts) window.unreadCounts[roomId] = 0;
@@ -41,6 +46,44 @@ function connectSocket(token, currentRoom, currentUser) {
         setTimeout(() => {
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }, 100);
+    });
+
+    socket.on('olderMessages', ({ roomId, messages, hasMore }) => {
+        if (String(roomId) !== String(window.ChatApp?.currentRoom)) {
+            return;
+        }
+
+        const messagesEl = document.getElementById('messages');
+
+        if (!messages || messages.length === 0) {
+            hasMoreMessages = false;
+            loadingOlderMessages = false;
+            return;
+        }
+
+        // Remember current scroll position
+        const oldScrollHeight = messagesEl.scrollHeight;
+        const oldScrollTop = messagesEl.scrollTop;
+
+        // Reset date tracking while prepending
+        window.lastDateGroup = null;
+
+        messages.forEach(msg => {
+            const myId = String(getCurrentUserId() || '');
+            const senderId = String(msg.sender?._id || msg.sender || '');
+            const isOwn = myId && senderId && myId === senderId;
+
+            addMessage(msg, isOwn, true);
+        });
+
+        hasMoreMessages = hasMore;
+        loadingOlderMessages = false;
+
+        // Keep the user at the same visual position
+        const newScrollHeight = messagesEl.scrollHeight;
+
+        messagesEl.scrollTop =
+            oldScrollTop + (newScrollHeight - oldScrollHeight);
     });
 
     socket.on('newMessage', ({ message, roomId }) => {

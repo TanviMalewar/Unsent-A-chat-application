@@ -81,6 +81,7 @@ const setupSocketHandlers = (io) => {
                     return;
                 }
 
+                // Check that the user belongs to this room
                 const room = await Room.findOne({
                     _id: roomId,
                     participants: socket.userId
@@ -118,25 +119,32 @@ const setupSocketHandlers = (io) => {
                     message: `${name} is online`
                 });
 
-                // Fetch last 50 messages
+                // FETCH LATEST 50 MESSAGES
                 const messages = await Message.find({
                     room: room._id
                 })
-                    .populate('sender', 'name email')
-                    .populate({
-                    path: 'replyTo',
-                    populate: {
-                        path: 'sender',
-                        select: 'name email'
-                    }
-                })
+                .populate('sender', 'name email')
+                .populate({
+                path: 'replyTo',
+                populate: {
+                    path: 'sender',
+                    select: 'name email'
+                }
+            })
+            .sort({ createdAt: -1, _id: -1 })
+            .limit(50);
 
-                // Send history to joining user
-                socket.emit('roomHistory', {
+        // If we received exactly 50 messages,
+        // there may be older messages available.
+            const hasMore = messages.length === 50;
+
+        // Send messages oldest → newest to frontend
+            socket.emit('roomHistory', {
                     roomId: roomIdString,
                     roomName: room.name,
-                    messages: messages.reverse()
-                });
+                    messages: messages.reverse(),
+                    hasMore
+            });
 
             } catch (error) {
                 console.error('Join room error:', error);
@@ -146,6 +154,87 @@ const setupSocketHandlers = (io) => {
                 });
             }
         });
+
+        socket.on('loadOlderMessages', async ({ roomId, oldestMessageId }) => {
+            try {
+                if (!roomId || !oldestMessageId) {
+                    socket.emit('error', {
+                        message: 'Room ID and oldest message ID are required'
+                    });
+                    return;
+               }
+
+               // Verify that the user is a participant of this room
+               const room = await Room.findOne({
+                   _id: roomId,
+                   participants: socket.userId
+               });
+
+               if (!room) {
+                   socket.emit('error', {
+                       message: 'Room not found or you are not a participant'
+                   });
+                   return;
+               }
+
+               // Find the oldest message currently loaded on the client
+               const oldestMessage = await Message.findOne({
+                   _id: oldestMessageId,
+                   room: roomId
+               });
+
+               if (!oldestMessage) {
+                   socket.emit('error', {
+                       message: 'Oldest message not found'
+                   });
+                   return;
+               }
+
+               // Fetch 50 messages older than the oldest loaded message
+               const messages = await Message.find({
+                   room: roomId,
+                   $or: [
+                       {
+                           createdAt: {
+                               $lt: oldestMessage.createdAt
+                           }
+                       },
+                       {
+                           createdAt: oldestMessage.createdAt,
+                           _id: {
+                               $lt: oldestMessage._id
+                           }
+                       }
+                   ]
+               })
+                   .populate('sender', 'name email')
+                   .populate({
+                       path: 'replyTo',
+                       populate: {
+                           path: 'sender',
+                           select: 'name email'
+                       }
+                   })
+                   .sort({ createdAt: -1, _id: -1 })
+                   .limit(50);
+
+               const hasMore = messages.length === 50;
+
+               // Send oldest → newest
+               socket.emit('olderMessages', {
+                   roomId: roomId,
+                   messages: messages.reverse(),
+                   hasMore
+               });
+
+           } catch (error) {
+               console.error('Load older messages error:', error);
+
+               socket.emit('error', {
+                   message: 'Failed to load older messages: ' + error.message
+               });
+           }
+}       );
 
         socket.on('leaveRoom', ({ roomId }) => {
             try {
@@ -187,7 +276,7 @@ const setupSocketHandlers = (io) => {
             }
         });
 
-  socket.on('sendMessage', async ({ roomId, content, replyTo }) => {
+        socket.on('sendMessage', async ({ roomId, content, replyTo }) => {
     try {
         console.log('=== SEND MESSAGE DEBUG ===');
         console.log('socket.userId:', socket.userId);
@@ -254,7 +343,7 @@ const setupSocketHandlers = (io) => {
             message: 'Failed to send message: ' + error.message
         });
     }
-});
+        });
 
         socket.on('typing', ({ roomId }) => {
             if (!roomId) return;

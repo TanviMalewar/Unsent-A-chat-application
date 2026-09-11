@@ -1,18 +1,11 @@
-function addMessage(message, isOwn) {
+function addMessage(message, isOwn, prepend = false) {
     const messagesEl = document.getElementById('messages');
+
     const empty = messagesEl.querySelector('.empty-state');
     if (empty) empty.remove();
 
     const msgDate = new Date(message.createdAt);
     const dateGroup = Utils.getDateGroup(msgDate);
-
-    if (dateGroup !== window.lastDateGroup) {
-        window.lastDateGroup = dateGroup;
-        const divider = document.createElement('div');
-        divider.className = 'date-divider';
-        divider.textContent = dateGroup;
-        messagesEl.appendChild(divider);
-    }
 
     const wrapper = document.createElement('div');
     wrapper.className = 'message-wrapper ' + (isOwn ? 'right' : 'left');
@@ -45,7 +38,9 @@ function addMessage(message, isOwn) {
 
     const sender = document.createElement('div');
     sender.className = 'message-sender';
-    sender.textContent = isOwn ? 'You' : (message.sender?.name || 'Unknown');
+    sender.textContent = isOwn
+        ? 'You'
+        : (message.sender?.name || 'Unknown');
 
     if (message.isEdited && !message.isDeleted) {
         const editedLabel = document.createElement('span');
@@ -56,6 +51,7 @@ function addMessage(message, isOwn) {
 
     const text = document.createElement('div');
     text.className = 'message-text';
+
     if (message.isDeleted) {
         text.textContent = 'This message was deleted';
         text.style.fontStyle = 'italic';
@@ -71,7 +67,11 @@ function addMessage(message, isOwn) {
     if (isOwn) {
         const status = document.createElement('span');
         status.className = 'message-status';
-        status.textContent = (message.readBy && message.readBy.length > 0) ? ' ✓✓' : ' ✓';
+        status.textContent =
+            (message.readBy && message.readBy.length > 0)
+                ? ' ✓✓'
+                : ' ✓';
+
         time.appendChild(status);
     }
 
@@ -79,7 +79,7 @@ function addMessage(message, isOwn) {
     bubble.appendChild(text);
     bubble.appendChild(time);
 
-    // ✅ ADD ACTION BUTTONS
+    // Action buttons
     const actions = document.createElement('div');
     actions.className = 'message-actions';
 
@@ -87,19 +87,23 @@ function addMessage(message, isOwn) {
         const editBtn = document.createElement('button');
         editBtn.className = 'message-action-btn';
         editBtn.textContent = 'Edit';
+
         editBtn.onclick = (e) => {
             e.stopPropagation();
             startEditMessage(message);
         };
+
         actions.appendChild(editBtn);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'message-action-btn';
         deleteBtn.textContent = 'Delete';
+
         deleteBtn.onclick = (e) => {
             e.stopPropagation();
             deleteMessageHandler(message);
         };
+
         actions.appendChild(deleteBtn);
     }
 
@@ -107,20 +111,45 @@ function addMessage(message, isOwn) {
         const replyBtn = document.createElement('button');
         replyBtn.className = 'message-action-btn';
         replyBtn.textContent = 'Reply';
+
         replyBtn.onclick = (e) => {
             e.stopPropagation();
             startReply(message);
         };
+
         actions.appendChild(replyBtn);
     }
 
+    bubble.appendChild(actions);
     wrapper.appendChild(bubble);
-    if (actions.children.length > 0) {
-        wrapper.appendChild(actions);
-    }
 
-    messagesEl.appendChild(wrapper);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    // ==========================================
+    // DATE DIVIDER + MESSAGE POSITION
+    // ==========================================
+
+    if (prepend) {
+        const divider = document.createElement('div');
+        divider.className = 'date-divider';
+        divider.textContent = dateGroup;
+
+        messagesEl.insertBefore(divider, messagesEl.firstChild);
+        messagesEl.insertBefore(wrapper, messagesEl.firstChild);
+
+    } else {
+
+        if (dateGroup !== window.lastDateGroup) {
+            window.lastDateGroup = dateGroup;
+
+            const divider = document.createElement('div');
+            divider.className = 'date-divider';
+            divider.textContent = dateGroup;
+
+            messagesEl.appendChild(divider);
+        }
+
+        messagesEl.appendChild(wrapper);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
 }
 
 // ===== EDIT MESSAGE =====
