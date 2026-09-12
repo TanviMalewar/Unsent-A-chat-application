@@ -13,11 +13,25 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
     minlength: 1,
     maxlength: 5000
   },
+  attachment: {
+  url: {
+    type: String
+  },
+  filename: {
+    type: String
+  },
+  type: {
+    type: String
+  },
+  size: {
+    type: Number
+  }
+},
   replyTo: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Message',

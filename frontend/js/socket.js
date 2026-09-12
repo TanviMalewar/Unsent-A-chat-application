@@ -88,15 +88,6 @@ function connectSocket(token, currentRoom, currentUser) {
 
     socket.on('newMessage', ({ message, roomId }) => {
 
-    console.log("=== NEW MESSAGE RECEIVED ===");
-    console.log("event roomId:", roomId);
-    console.log("currentRoom:", window.ChatApp?.currentRoom);
-    console.log(
-        "same room:",
-        String(roomId) === String(window.ChatApp?.currentRoom)
-    );
-    console.log("message:", message);
-
     if (String(roomId) === String(window.ChatApp?.currentRoom)) {
         const myId = String(getCurrentUserId() || '');
             const senderId = String(message.sender?._id ||message.sender || '');

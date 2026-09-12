@@ -5,6 +5,7 @@ const authRoutes = require("./routes/auth.routes");
 const roomRoutes = require("./routes/room.routes");
 const { authenticateToken } = require("./middlewares/auth.middleware");
 const messageRoutes = require("./routes/message.routes");
+const uploadRoutes = require('./routes/upload.routes');
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/old', express.static(path.join(__dirname, 'public')));
 app.use("/auth", authRoutes);
 app.use("/rooms", authenticateToken, roomRoutes);
 app.use("/rooms/:id", authenticateToken, messageRoutes);
+app.use('/api/upload', authenticateToken, uploadRoutes);
 
 app.get("/health", (req, res) => {
     res.status(200).json({
