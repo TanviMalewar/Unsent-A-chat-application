@@ -276,22 +276,15 @@ const setupSocketHandlers = (io) => {
             }
         });
 
-        socket.on('sendMessage', async ({ roomId, content, replyTo }) => {
+        socket.on('sendMessage', async ({ roomId, content, replyTo, attachment }) => {
     try {
-        console.log('=== SEND MESSAGE DEBUG ===');
-        console.log('socket.userId:', socket.userId);
-        console.log('socket.user._id:', socket.user._id);
-        console.log('socket.user.name:', socket.user.name);
-        console.log('sender value used:', socket.userId);
-        console.log('replyTo:', replyTo);
-
         if (!roomId) {
             socket.emit('error', { message: 'Room ID is required' });
             return;
         }
 
-        if (!content || content.trim() === '') {
-            socket.emit('error', { message: 'Message content is required' });
+        if ((!content || content.trim() === '')&&!attachment) {
+            socket.emit('error', { message: 'Message content or attachment is required' });
             return;
         }
 
@@ -310,8 +303,9 @@ const setupSocketHandlers = (io) => {
         const message = new Message({
             room: roomId,
             sender: socket.userId,
-            content: content.trim(),
-            replyTo: replyTo || null
+            content: content || undefined,
+            replyTo: replyTo || null,
+            attachment: attachment || null
         });
 
         await message.save();

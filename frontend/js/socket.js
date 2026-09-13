@@ -92,12 +92,12 @@ function connectSocket(token, currentRoom, currentUser) {
         const myId = String(getCurrentUserId() || '');
             const senderId = String(message.sender?._id ||message.sender || '');
             const isOwn = myId && senderId && myId === senderId;
-            console.log("NEW MESSAGE OWNERSHIP DEBUG:", {
-            myId,
-            senderId,
-            isOwn,
-            message
-        });
+            console.log("ATTACHMENT DEBUG:", {
+                attachment: message.attachment,
+                type: message.attachment?.type,
+                url: message.attachment?.url,
+                filename: message.attachment?.filename
+            });
             addMessage(message, isOwn);
         } else {
             if (!window.unreadCounts) window.unreadCounts = {};

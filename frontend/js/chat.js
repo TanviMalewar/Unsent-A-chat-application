@@ -36,6 +36,7 @@ function addMessage(message, isOwn, prepend = false) {
         bubble.appendChild(quote);
     }
 
+    // Sender
     const sender = document.createElement('div');
     sender.className = 'message-sender';
     sender.textContent = isOwn
@@ -49,17 +50,59 @@ function addMessage(message, isOwn, prepend = false) {
         sender.appendChild(editedLabel);
     }
 
-    const text = document.createElement('div');
-    text.className = 'message-text';
+    bubble.appendChild(sender);
 
-    if (message.isDeleted) {
-        text.textContent = 'This message was deleted';
-        text.style.fontStyle = 'italic';
-        text.style.color = '#999';
-    } else {
+    // Message content
+    if (!message.isDeleted && message.content) {
+        const text = document.createElement('div');
+        text.className = 'message-text';
         text.textContent = message.content;
+        bubble.appendChild(text);
     }
 
+    // Attachment
+    if (!message.isDeleted && message.attachment) {
+        const attachment = message.attachment;
+
+        if (attachment.type && attachment.type.startsWith('image/')) {
+            const image = document.createElement('img');
+
+            image.src = attachment.url;
+            image.alt = attachment.filename || 'Image';
+            image.className = 'message-image';
+            image.loading = 'lazy';
+
+            image.onclick = () => {
+                window.open(attachment.url, '_blank');
+            };
+
+            bubble.appendChild(image);
+
+        } else {
+            const fileLink = document.createElement('a');
+
+            fileLink.href = attachment.url;
+            fileLink.target = '_blank';
+            fileLink.rel = 'noopener noreferrer';
+            fileLink.className = 'message-file';
+            fileLink.textContent = `📎 ${attachment.filename || 'Attached file'}`;
+
+            bubble.appendChild(fileLink);
+        }
+    }
+
+    // Deleted message
+    if (message.isDeleted) {
+        const deletedText = document.createElement('div');
+        deletedText.className = 'message-text';
+        deletedText.textContent = 'This message was deleted';
+        deletedText.style.fontStyle = 'italic';
+        deletedText.style.color = '#999';
+
+        bubble.appendChild(deletedText);
+    }
+
+    // Time
     const time = document.createElement('div');
     time.className = 'message-time';
     time.textContent = Utils.formatTime(message.createdAt);
@@ -75,8 +118,6 @@ function addMessage(message, isOwn, prepend = false) {
         time.appendChild(status);
     }
 
-    bubble.appendChild(sender);
-    bubble.appendChild(text);
     bubble.appendChild(time);
 
     // Action buttons
@@ -123,10 +164,7 @@ function addMessage(message, isOwn, prepend = false) {
     bubble.appendChild(actions);
     wrapper.appendChild(bubble);
 
-    // ==========================================
-    // DATE DIVIDER + MESSAGE POSITION
-    // ==========================================
-
+    // Date divider + message position
     if (prepend) {
         const divider = document.createElement('div');
         divider.className = 'date-divider';
@@ -136,7 +174,6 @@ function addMessage(message, isOwn, prepend = false) {
         messagesEl.insertBefore(wrapper, messagesEl.firstChild);
 
     } else {
-
         if (dateGroup !== window.lastDateGroup) {
             window.lastDateGroup = dateGroup;
 
@@ -152,7 +189,7 @@ function addMessage(message, isOwn, prepend = false) {
     }
 }
 
-// ===== EDIT MESSAGE =====
+//EDIT MESSAGE
 let editingMessageId = null;
 
 function startEditMessage(message) {
@@ -225,7 +262,7 @@ function cancelEdit() {
     }
 }
 
-// ===== DELETE MESSAGE =====
+//DELETE MESSAGE
 function deleteMessageHandler(message) {
     if (!confirm('Delete this message?')) return;
 
@@ -263,7 +300,7 @@ function renderRooms(rooms, currentRoom, unreadCounts) {
     });
 }
 
-// ===== REPLY =====
+//REPLY
 let replyingTo = null;
 
 function startReply(message) {
@@ -280,4 +317,112 @@ function cancelReply() {
     document.getElementById('replyPreview').style.display = 'none';
     document.getElementById('replyAuthor').textContent = '';
     document.getElementById('replyText').textContent = '';
+}
+
+const fileInput = document.getElementById('fileInput');
+const attachBtn = document.getElementById('attachBtn');
+
+attachBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+
+    if (!file) return;
+
+    const token = localStorage.getItem('chat_token');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('/api/upload/file', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Upload failed');
+        }
+
+        window.selectedAttachment = data.file;
+
+        showAttachmentPreview(file, data.file);
+
+    } catch (error) {
+        console.error('File upload error:', error);
+        alert(error.message);
+        fileInput.value = '';
+    }
+});
+
+function showAttachmentPreview(file, attachment) {
+    let preview = document.getElementById('attachmentPreview');
+
+    if (!preview) {
+        preview = document.createElement('div');
+        preview.id = 'attachmentPreview';
+        preview.className = 'attachment-preview';
+
+        const inputArea = document.querySelector('.input-area');
+        inputArea.parentNode.insertBefore(preview, inputArea);
+    }
+
+    preview.innerHTML = '';
+
+    const info = document.createElement('div');
+    info.className = 'attachment-info';
+
+    if (file.type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.className = 'attachment-preview-image';
+        info.appendChild(img);
+    } else {
+        const icon = document.createElement('span');
+        icon.className = 'attachment-file-icon';
+        icon.textContent = '📎';
+        info.appendChild(icon);
+    }
+
+    const details = document.createElement('div');
+
+    const name = document.createElement('div');
+    name.className = 'attachment-name';
+    name.textContent = attachment.filename;
+
+    const size = document.createElement('div');
+    size.className = 'attachment-size';
+    size.textContent = formatFileSize(attachment.size);
+
+    details.appendChild(name);
+    details.appendChild(size);
+    info.appendChild(details);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'attachment-remove';
+    removeBtn.textContent = '✕';
+
+    removeBtn.onclick = () => {
+        window.selectedAttachment = null;
+        fileInput.value = '';
+        preview.remove();
+    };
+
+    preview.appendChild(info);
+    preview.appendChild(removeBtn);
+}
+
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const index = Math.floor(Math.log(bytes) / Math.log(1024));
+
+    return `${(bytes / Math.pow(1024, index)).toFixed(1)} ${units[index]}`;
 }
