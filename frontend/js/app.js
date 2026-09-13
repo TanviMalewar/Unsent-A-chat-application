@@ -266,28 +266,18 @@ const ChatApp = {
             attachment: attachment
         });
 
-        // Clear input
-        if (input) {
-            input.value = '';
+        input.value = '';
+
+        if (typeof clearAttachmentPreview === 'function') {
+            clearAttachmentPreview();
         }
 
-        // Clear selected attachment
-        window.selectedAttachment = null;
+        input.focus();
 
-        if (fileInput) {
-            fileInput.value = '';
-        }
-
-        if (input) {
-            input.focus();
-        }
-
-        // Clear reply mode
         if (replyingTo) {
             cancelReply();
         }
     },
-
     createRoom: async function() {
         const nameInput = document.getElementById('roomName');
         const typeInput = document.getElementById('roomType');

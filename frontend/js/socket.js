@@ -49,42 +49,65 @@ function connectSocket(token, currentRoom, currentUser) {
     });
 
     socket.on('olderMessages', ({ roomId, messages, hasMore }) => {
-        if (String(roomId) !== String(window.ChatApp?.currentRoom)) {
-            return;
-        }
+    if (String(roomId) !== String(window.ChatApp?.currentRoom)) {
+        return;
+    }
 
-        const messagesEl = document.getElementById('messages');
+    const messagesEl = document.getElementById('messages');
 
-        if (!messages || messages.length === 0) {
-            hasMoreMessages = false;
-            loadingOlderMessages = false;
-            return;
-        }
-
-        // Remember current scroll position
-        const oldScrollHeight = messagesEl.scrollHeight;
-        const oldScrollTop = messagesEl.scrollTop;
-
-        // Reset date tracking while prepending
-        window.lastDateGroup = null;
-
-        messages.forEach(msg => {
-            const myId = String(getCurrentUserId() || '');
-            const senderId = String(msg.sender?._id || msg.sender || '');
-            const isOwn = myId && senderId && myId === senderId;
-
-            addMessage(msg, isOwn, true);
-        });
-
-        hasMoreMessages = hasMore;
+    if (!messages || messages.length === 0) {
+        hasMoreMessages = false;
         loadingOlderMessages = false;
+        return;
+    }
 
-        // Keep the user at the same visual position
-        const newScrollHeight = messagesEl.scrollHeight;
+    const oldScrollHeight = messagesEl.scrollHeight;
+    const oldScrollTop = messagesEl.scrollTop;
 
-        messagesEl.scrollTop =
-            oldScrollTop + (newScrollHeight - oldScrollHeight);
+    // Backend sends oldest → newest.
+    // addMessage(prepend) inserts at the top,
+    // so render newest → oldest.
+    messages.slice().reverse().forEach(msg => {
+        const myId = String(getCurrentUserId() || '');
+        const senderId = String(msg.sender?._id || msg.sender || '');
+        const isOwn = myId && senderId && myId === senderId;
+
+        addMessage(msg, isOwn, true);
     });
+
+    hasMoreMessages = hasMore;
+    loadingOlderMessages = false;
+
+    const newScrollHeight = messagesEl.scrollHeight;
+
+    messagesEl.scrollTop =
+        oldScrollTop + (newScrollHeight - oldScrollHeight);
+});
+
+    const messagesEl = document.getElementById('messages');
+
+    if (messagesEl) {
+        messagesEl.addEventListener('scroll', () => {
+            if (messagesEl.scrollTop > 50) return;
+            if (!hasMoreMessages || loadingOlderMessages) return;
+            if (!window.ChatApp?.currentRoom) return;
+
+            const firstMessage = messagesEl.querySelector('.message-wrapper');
+
+            if (!firstMessage) return;
+
+            const oldestMessageId = firstMessage.dataset.messageId;
+
+            if (!oldestMessageId) return;
+
+            loadingOlderMessages = true;
+
+            socket.emit('loadOlderMessages', {
+                roomId: window.ChatApp.currentRoom,
+                oldestMessageId
+            });
+        });
+    }   
 
     socket.on('newMessage', ({ message, roomId }) => {
 

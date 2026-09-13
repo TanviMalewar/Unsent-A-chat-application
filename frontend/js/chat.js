@@ -10,6 +10,7 @@ function addMessage(message, isOwn, prepend = false) {
     const wrapper = document.createElement('div');
     wrapper.className = 'message-wrapper ' + (isOwn ? 'right' : 'left');
     wrapper.dataset.messageId = message._id;
+    wrapper.dataset.dateGroup = dateGroup;
 
     if (message.isDeleted) {
         wrapper.classList.add('deleted');
@@ -77,7 +78,6 @@ function addMessage(message, isOwn, prepend = false) {
             };
 
             bubble.appendChild(image);
-
         } else {
             const fileLink = document.createElement('a');
 
@@ -85,7 +85,8 @@ function addMessage(message, isOwn, prepend = false) {
             fileLink.target = '_blank';
             fileLink.rel = 'noopener noreferrer';
             fileLink.className = 'message-file';
-            fileLink.textContent = `📎 ${attachment.filename || 'Attached file'}`;
+            fileLink.textContent =
+                `📎 ${attachment.filename || 'Attached file'}`;
 
             bubble.appendChild(fileLink);
         }
@@ -164,28 +165,50 @@ function addMessage(message, isOwn, prepend = false) {
     bubble.appendChild(actions);
     wrapper.appendChild(bubble);
 
-    // Date divider + message position
+    // Add message
     if (prepend) {
-        const divider = document.createElement('div');
-        divider.className = 'date-divider';
-        divider.textContent = dateGroup;
+        const firstMessage = messagesEl.querySelector('.message-wrapper');
 
-        messagesEl.insertBefore(divider, messagesEl.firstChild);
-        messagesEl.insertBefore(wrapper, messagesEl.firstChild);
-
-    } else {
-        if (dateGroup !== window.lastDateGroup) {
-            window.lastDateGroup = dateGroup;
-
-            const divider = document.createElement('div');
-            divider.className = 'date-divider';
-            divider.textContent = dateGroup;
-
-            messagesEl.appendChild(divider);
+        if (firstMessage) {
+            messagesEl.insertBefore(wrapper, firstMessage);
+        } else {
+            messagesEl.appendChild(wrapper);
         }
-
+    } else {
         messagesEl.appendChild(wrapper);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // ==========================================
+    // REBUILD DATE DIVIDERS
+    // ==========================================
+
+    messagesEl.querySelectorAll('.date-divider').forEach(divider => {
+        divider.remove();
+    });
+
+    const allMessages = messagesEl.querySelectorAll('.message-wrapper');
+
+    let previousDate = null;
+
+    allMessages.forEach(msgWrapper => {
+        const msgDateGroup = msgWrapper.dataset.dateGroup;
+
+        if (msgDateGroup !== previousDate) {
+            const divider = document.createElement('div');
+            divider.className = 'date-divider';
+            divider.textContent = msgDateGroup;
+
+            messagesEl.insertBefore(divider, msgWrapper);
+
+            previousDate = msgDateGroup;
+        }
+    });
+
+    // Keep latest date tracking correct
+    if (allMessages.length > 0) {
+        window.lastDateGroup =
+            allMessages[allMessages.length - 1].dataset.dateGroup;
     }
 }
 
@@ -408,14 +431,21 @@ function showAttachmentPreview(file, attachment) {
     removeBtn.className = 'attachment-remove';
     removeBtn.textContent = '✕';
 
-    removeBtn.onclick = () => {
-        window.selectedAttachment = null;
-        fileInput.value = '';
-        preview.remove();
-    };
+    removeBtn.onclick = clearAttachmentPreview;
 
     preview.appendChild(info);
     preview.appendChild(removeBtn);
+}
+
+function clearAttachmentPreview() {
+    window.selectedAttachment = null;
+    fileInput.value = '';
+
+    const preview = document.getElementById('attachmentPreview');
+
+    if (preview) {
+        preview.remove();
+    }
 }
 
 function formatFileSize(bytes) {
