@@ -93,8 +93,10 @@ const ChatApp = {
         const createRoomBtn = document.getElementById('createRoomBtn');
 
         if (createRoomBtn) {
-            createRoomBtn.onclick = () => {
+            createRoomBtn.onclick = async () => {
                 document.getElementById('createRoomModal').style.display = 'flex';
+
+                await this.loadUsers();
             };
         }
 
@@ -156,6 +158,56 @@ const ChatApp = {
             `;
         }
     },
+
+    loadUsers: async function() {
+    const participantsList =
+        document.getElementById('participantsList');
+
+    try {
+        const data = await Utils.api('/rooms/users');
+
+        participantsList.innerHTML = '';
+
+        if (!data.users || data.users.length === 0) {
+            participantsList.innerHTML =
+                '<div class="loading-text">No other users found.</div>';
+            return;
+        }
+
+        data.users.forEach(user => {
+            const label = document.createElement('label');
+            label.className = 'participant-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = user._id;
+
+            const info = document.createElement('div');
+            info.className = 'participant-info';
+
+            const name = document.createElement('span');
+            name.className = 'participant-name';
+            name.textContent = user.username;
+
+            const email = document.createElement('small');
+            email.textContent = user.email;
+
+            info.appendChild(name);
+            info.appendChild(email);
+
+            label.appendChild(checkbox);
+            label.appendChild(info);
+
+            participantsList.appendChild(label);
+        });
+
+    } catch (error) {
+        console.error('Load users error:', error);
+
+        participantsList.innerHTML =
+            '<div class="loading-text">Failed to load users.</div>';
+    }
+},
 
     switchRoom: function(roomId) {
         if (!roomId || String(roomId) === String(this.currentRoom)) {
@@ -279,57 +331,65 @@ const ChatApp = {
         }
     },
     createRoom: async function() {
-        const nameInput = document.getElementById('roomName');
-        const typeInput = document.getElementById('roomType');
-        const participantsInput =
-            document.getElementById('participantsInput');
+    const nameInput = document.getElementById('roomName');
+    const typeInput = document.getElementById('roomType');
 
-        const name = nameInput.value.trim();
-        const type = typeInput.value;
+    const name = nameInput.value.trim();
+    const type = typeInput.value;
 
-        const participants = participantsInput.value
-            .split(',')
-            .map(p => p.trim())
-            .filter(p => p);
+    const selectedParticipants = [
+        ...document.querySelectorAll(
+            '#participantsList input[type="checkbox"]:checked'
+        )
+    ];
 
-        if (!name) {
-            alert('Room name required');
-            return;
-        }
+    const participants = selectedParticipants.map(
+        checkbox => checkbox.value
+    );
 
-        if (type === 'direct' && participants.length !== 1) {
-            alert('Direct messages need exactly 1 participant');
-            return;
-        }
+    if (!name) {
+        alert('Room name required');
+        return;
+    }
 
-        try {
-            const data = await Utils.api(
-                '/rooms',
-                'POST',
-                {
-                    name,
-                    type,
-                    participants
-                }
-            );
+    if (type === 'direct' && participants.length !== 1) {
+        alert('Direct messages need exactly 1 participant');
+        return;
+    }
 
-            this.closeModal();
+    if (type === 'group' && participants.length < 2) {
+        alert('Group room needs at least 2 participants');
+        return;
+    }
 
-            document.getElementById('createRoomForm').reset();
-
-            await this.loadRooms();
-
-            if (data.room) {
-                this.switchRoom(data.room._id);
+    try {
+        const data = await Utils.api(
+            '/rooms',
+            'POST',
+            {
+                name,
+                type,
+                participants
             }
+        );
 
-        } catch (error) {
-            alert(
-                error.message ||
-                'Failed to create room'
-            );
+        this.closeModal();
+
+        document.getElementById('createRoomForm').reset();
+
+        await this.loadRooms();
+
+        if (data.room) {
+            this.switchRoom(data.room._id);
         }
-    },
+
+    } catch (error) {
+        alert(
+            error.message ||
+            'Failed to create room'
+        );
+    }
+},
 
     closeModal: function() {
         const modal = document.getElementById('createRoomModal');
@@ -353,6 +413,8 @@ const ChatApp = {
             this.currentUser
         );
     }
+
+
 };
 
 // ===== INITIALIZE =====
@@ -360,3 +422,4 @@ const ChatApp = {
 document.addEventListener('DOMContentLoaded', () => {
     ChatApp.init();
 });
+

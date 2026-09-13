@@ -1,4 +1,5 @@
 const Room = require('../models/room.model');
+const User = require('../models/user.model');
 
 exports.createRoom = async (req, res) => {
   try {
@@ -151,6 +152,29 @@ exports.getRoom = async (req, res) => {
     console.error('Get room error:', error);
     res.status(500).json({ 
       error: error.message || 'Failed to fetch room' 
+    });
+  }
+};
+
+// Get all users except current user
+exports.getUsers = async (req, res) => {
+  try {
+    const users = await User.find({
+      _id: { $ne: req.user._id }
+    })
+    .select('username email')
+    .sort({ username: 1 });
+
+    res.json({
+      success: true,
+      users
+    });
+
+  } catch (error) {
+    console.error('Get users error:', error);
+
+    res.status(500).json({
+      error: error.message || 'Failed to fetch users'
     });
   }
 };

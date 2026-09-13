@@ -74,9 +74,10 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="participantsInput">Participant IDs</label>
-                    <input type="text" id="participantsInput" placeholder="user_id1, user_id2">
-                    <small>Enter comma-separated user IDs</small>
+                    <label>Select Participants</label>
+                        <div id="participantsList" class="participants-list">
+                            <div class="loading-text">Loading users...</div>
+                        </div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-outline" onclick="ChatApp.closeModal()">Cancel</button>
