@@ -30,7 +30,9 @@ const messageSchema = new mongoose.Schema({
   },
   size: {
     type: Number
-  }
+  },
+  publicId: { type: String },
+  resourceType: { type: String },
 },
   replyTo: {
     type: mongoose.Schema.Types.ObjectId,
@@ -48,7 +50,7 @@ const messageSchema = new mongoose.Schema({
   readBy: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
 }, {
   timestamps: true
 });

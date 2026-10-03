@@ -1,6 +1,8 @@
 const Message = require('../models/message.model');
 const Room = require('../models/room.model');
 const { authenticateSocket } = require('../middlewares/socket.auth.middleware');
+const { sanitizeAttachment } = require('../utils/attachment');
+const { deleteFile } = require('../config/cloudinary');
 
 // In-memory store: userId -> Set of socketIds
 const onlineUsers = new Map();
@@ -283,7 +285,17 @@ const setupSocketHandlers = (io) => {
             return;
         }
 
-        if ((!content || content.trim() === '')&&!attachment) {
+        // Only keep the attachment if it really came from this user's Cloudinary folder
+        const cleanAttachment = attachment
+            ? sanitizeAttachment(attachment, socket.userId)
+            : null;
+
+        if (attachment && !cleanAttachment) {
+            socket.emit('error', { message: 'Invalid attachment' });
+            return;
+        }
+
+        if ((!content || content.trim() === '') && !cleanAttachment) {
             socket.emit('error', { message: 'Message content or attachment is required' });
             return;
         }
@@ -305,39 +317,29 @@ const setupSocketHandlers = (io) => {
             sender: socket.userId,
             content: content || undefined,
             replyTo: replyTo || null,
-            attachment: attachment || null
+            attachment: cleanAttachment || undefined
         });
 
         await message.save();
 
         await message.populate([
-            {
-                path: 'sender',
-                select: 'name email'
-            },
+            { path: 'sender', select: 'name email' },
             {
                 path: 'replyTo',
-                populate: {
-                    path: 'sender',
-                    select: 'name email'
-                }
+                populate: { path: 'sender', select: 'name email' }
             }
         ]);
 
-        io.to(roomId).emit('newMessage', {
-            message,
-            roomId
-        });
+        io.to(roomId).emit('newMessage', { message, roomId });
 
         console.log(`Message from ${name} broadcasted to room ${roomId}`);
-
     } catch (error) {
         console.error('Send message error:', error);
         socket.emit('error', {
             message: 'Failed to send message: ' + error.message
         });
     }
-        });
+});
 
         socket.on('typing', ({ roomId }) => {
             if (!roomId) return;
@@ -497,47 +499,57 @@ const setupSocketHandlers = (io) => {
 
         // Delete message via socket
         socket.on('deleteMessage', async ({ roomId, messageId }) => {
-            try {
-                if (!roomId || !messageId) {
-                    socket.emit('error', { message: 'Invalid delete request' });
-                    return;
-                }
+    try {
+        if (!roomId || !messageId) {
+            socket.emit('error', { message: 'Invalid delete request' });
+            return;
+        }
 
-                const message = await Message.findById(messageId);
+        const message = await Message.findById(messageId);
 
-                if (!message) {
-                    socket.emit('error', { message: 'Message not found' });
-                    return;
-                }
+        if (!message) {
+            socket.emit('error', { message: 'Message not found' });
+            return;
+        }
 
-                // Authorization: only sender can delete
-                if (message.sender.toString() !== socket.userId.toString()) {
-                    socket.emit('error', { message: 'You can only delete your own messages' });
-                    return;
-                }
+        // Make sure the message really belongs to the room we are about to broadcast to
+        if (message.room.toString() !== roomId) {
+            socket.emit('error', { message: 'Message does not belong to this room' });
+            return;
+        }
 
-                if (message.isDeleted) {
-                    socket.emit('error', { message: 'Message already deleted' });
-                    return;
-                }
+        if (message.sender.toString() !== socket.userId.toString()) {
+            socket.emit('error', { message: 'You can only delete your own messages' });
+            return;
+        }
 
-                // Soft delete
-                message.isDeleted = true;
-                message.content = 'This message was deleted';
-                await message.save();
+        if (message.isDeleted) {
+            socket.emit('error', { message: 'Message already deleted' });
+            return;
+        }
 
-                // Broadcast to room
-                io.to(roomId).emit('messageDeleted', {
-                    messageId: message._id
-                });
+        // Remember the file before we clear it from the message
+        const publicId = message.attachment?.publicId;
+        const resourceType = message.attachment?.resourceType;
 
-                console.log(`Message deleted by ${socket.user.name}`);
+        message.isDeleted = true;
+        message.content = 'This message was deleted';
+        message.attachment = undefined;
+        await message.save();
 
-            } catch (error) {
-                console.error('Delete message error:', error);
-                socket.emit('error', { message: 'Failed to delete message' });
-            }
-        }); 
+        // Remove the file from Cloudinary (errors are logged inside deleteFile)
+        if (publicId) {
+            deleteFile(publicId, resourceType);
+        }
+
+        io.to(roomId).emit('messageDeleted', { messageId: message._id });
+
+        console.log(`Message deleted by ${socket.user.name}`);
+    } catch (error) {
+        console.error('Delete message error:', error);
+        socket.emit('error', { message: 'Failed to delete message' });
+    }
+});
     });
 };
 

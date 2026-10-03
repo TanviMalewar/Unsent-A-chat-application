@@ -8,6 +8,8 @@ router.post("/register", register);
 
 router.post("/login", login);
 
-//router.get("/me",authMiddleware,getCurrentUser);
+router.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok" });
+});
 
 module.exports = router;

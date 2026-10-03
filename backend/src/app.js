@@ -18,7 +18,6 @@ app.use(express.json());
 
 // Serve NEW frontend folder at root
 app.use(express.static(path.join(__dirname, '../../frontend')));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Keep OLD app accessible (just in case)
 app.use('/old', express.static(path.join(__dirname, 'public')));
 
